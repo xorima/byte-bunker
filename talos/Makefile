@@ -31,6 +31,7 @@ start-cluster:
 	for i in $(VM_IDS); do \
 		ssh $(PROXMOX_USER)@$(PROXMOX_HOST) "qm start 900$$i"; \
 	done
+	@echo "Cluster started. You can now run 'make bootstrap-cluster' to bootstrap the Talos cluster."
 
 
 destroy-cluster: stop-cluster
@@ -54,17 +55,24 @@ create-cluster-settings: install-talosctl
 	--config-patch @patches/interface-names.yaml \
 	--config-patch @patches/kubelet-certificates.yaml \
 	--config-patch-control-plane @patches/vip.yaml \
+	--config-patch @patches/base-setup.yaml \
 	--output rendered/
 
-bootstrap-cluster:
+bootstrap-cluster: create-cluster-settings
 	for i in $(VM_IDS); do \
 		talosctl apply -f rendered/controlplane.yaml -n 192.168.100.21$$i --insecure; \
 	done
-    @mkdir -p .talos
-	cp rendered/talosconfig .talos/config
-	echo "Run: export TALOSCONFIG=.talos/config"
-	echo "Run: export KUBECONFIG=.talos/kubeconfig"
-	talosctl config --talosconfig=.talos/config endpoint 192.168.100.211 192.168.100.212 192.168.100.213
-	talosctl config --talosconfig=.talos/config node 192.168.100.211
+	@mkdir -p .talos
+	cp rendered/talosconfig .talos/config && \
+	echo "Run: export TALOSCONFIG=.talos/config" && \
+	echo "Run: export KUBECONFIG=.talos/kubeconfig" && \
+	talosctl config --talosconfig=.talos/config endpoint 192.168.100.211 192.168.100.212 192.168.100.213 && \
+	talosctl config --talosconfig=.talos/config node 192.168.100.211 && \
 	talosctl --talosconfig=.talos/config bootstrap
+	@echo "Cluster bootstrap in progress. You can now run 'make bootstrap-argo' to install ArgoCD once completed."
+	@echo "Run `talosctl --talosconfig=.talos/config dashboard` to see the bootstrap status"
+	
+
+bootstrap-argo:
 	talosctl --talosconfig=.talos/config kubeconfig .talos/kubeconfig
+	kubectl --kubeconfig .talos/kubeconfig apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml -n argocd

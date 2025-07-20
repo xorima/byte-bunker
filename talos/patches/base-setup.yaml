@@ -1,0 +1,4 @@
+---
+cluster:
+  extraManifests:
+    - https://raw.githubusercontent.com/xorima/byte-bunker/main/environments/prod/hk/base/namespace.yaml
